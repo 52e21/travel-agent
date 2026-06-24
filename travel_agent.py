@@ -265,11 +265,8 @@ def run_agent(user_message, history=None):
     return "抱歉，我暂时无法完成您的请求，请稍后再试。"
 
 # ==================== 5. 配置密钥（改成你自己的） ====================
-from config import DEEPSEEK_API_KEY, TAVILY_API_KEY,REAL_HOTEL_API_KEY
-os.environ["DEEPSEEK_API_KEY"] = DEEPSEEK_API_KEY
-os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
-os.environ["REAL_HOTEL_API_KEY"] = REAL_HOTEL_API_KEY
-#os.environ["REAL_HOTEL_API_KEY"] = "你的SerpApi密钥"
+from dotenv import load_dotenv
+load_dotenv()
 
 def main():
     """PyWebIO 主界面：循环接收用户输入，显示助手回复"""
