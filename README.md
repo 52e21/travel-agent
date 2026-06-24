@@ -1,6 +1,6 @@
 # 🌈 智能旅行助手
 
-一个基于 DeepSeek 大模型的 AI 旅行助手，可以帮你查天气、推荐景点、预订酒店、搜索最新旅游新闻。
+一个基于 DeepSeek 大模型的 AI 旅行助手，实现 Thought-Action-Observation 智能体循环，支持多工具协同调用。作为 Agent 开发方向的实践项目，完整覆盖了 Agent 设计、工具集成、 评估测试和 API 服务化。
 
 ## 功能
 - 🌤️ 实时天气查询（wttr.in）
@@ -10,10 +10,12 @@
 - 💬 彩色聊天界面（PyWebIO）
 
 ## 技术栈
-- Python
-- DeepSeek API（大模型推理）
-- Tavily API（实时搜索）
-- PyWebIO（Web 界面）
+- **大模型**: DeepSeek API
+- **Agent 架构**: Thought-Action-Observation 循环 / 工具调用 / System Prompt 设计
+- **后端**: Python / FastAPI
+- **搜索**: Tavily API / SerpApi
+- **前端**: PyWebIO
+- **测试**: 自动化测试脚本 / 15 条评估用例
 
 ## 如何使用
 
@@ -54,6 +56,14 @@
 - **覆盖工具**: 全部 5 个工具（天气、景点、酒店、新闻、时间）
 - **多工具编排**: 7 个用例覆盖 2-3 工具联动
 
+## 已知限制
+
+| 限制 | 说明 | 解决方案 |
+|------|------|----------|
+| 酒店 API 依赖 | SerpApi 需要付费 API Key，未配置时自动降级为模拟数据 | 代码已预留接口，替换真实 API 只需修改函数体 |
+| 复杂多工具任务 | 极简短输入 + 多工具调用可能超过循环次数限制（5 轮） | 增加循环上限或引导用户输入更详细的需求 |
+| 未做持久化记忆 | 当前仅支持会话内上下文，关闭浏览器后历史丢失 | 后续可接入 Chroma 向量数据库做长期记忆 |
+
 ## 系统架构
 ```mermaid
 graph TB
@@ -71,3 +81,11 @@ graph TB
     LLM --> |Thought| Agent
     Agent --> |Action| Tools
     Tools --> |Observation| Agent
+
+## Agent 工作流程
+
+1. 用户输入需求（如"北京天气怎么样？推荐一个景点"）
+2. Agent 进入 **Thought** 阶段：分析用户意图，决定调用哪个工具
+3. Agent 执行 **Action**：调用对应 API（天气、搜索、酒店等）
+4. 工具返回 **Observation**：Agent 获取结果，判断是否需要继续
+5. 循环直到 Agent 认为信息足够，输出最终回复
