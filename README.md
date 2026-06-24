@@ -55,7 +55,6 @@
 - **多工具编排**: 7 个用例覆盖 2-3 工具联动
 
 ## 系统架构
-
 ```mermaid
 graph TB
     User[👤 用户] --> Frontend[🌐 Web 前端]
