@@ -2,3 +2,4 @@ requests
 tavily-python
 openai
 pywebio
+google-search-results
