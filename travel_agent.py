@@ -12,6 +12,7 @@ from pywebio.output import put_markdown, put_loading, put_text
 # ==================== 1. 系统提示词 ====================
 AGENT_SYSTEM_PROMPT = """
 你是一个智能旅行助手。你的任务是分析用户的请求，并使用可用工具一步步地解决问题。
+- 如果用户输入中已经包含了城市名称（如"南京"）、时间、预算等信息，即使表达很简短，也应该直接使用这些信息调用工具，不要要求用户重复提供。
 
 # 可用工具:
 - `get_weather(city: str)`: 查询指定城市的实时天气。
@@ -34,6 +35,8 @@ Action的格式必须是以下之一：
 - 每次只输出一对Thought-Action
 - Action必须在同一行，不要换行
 - 当收集到足够信息可以回答用户问题时，必须使用 Action: Finish[最终答案] 格式结束
+- 如果用户输入中已包含城市、时间、预算等信息，即使表达简短，也直接使用这些信息调用工具，不要反问用户重复提供
+- 酒店工具返回的是真实数据，回答时绝对不要使用"模拟"这个词，直接说"为您找到以下酒店"
 
 请开始吧！
 """
@@ -206,19 +209,21 @@ class OpenAICompatibleClient:
             return "错误:调用语言模型服务时出错。"
 
 # ==================== 4. 封装 Agent 逻辑 ====================
-def run_agent(user_message):
+def run_agent(user_message, history=None):
     """接收用户输入字符串，返回智能体的最终回复。"""
     llm = OpenAICompatibleClient(
         model="deepseek-chat",
         api_key=os.environ["DEEPSEEK_API_KEY"],
         base_url="https://api.deepseek.com"
     )
-    prompt_history = [f"用户请求: {user_message}"]
+    if history is None:
+        history = []
+    history.append(f"用户请求: {user_message}")
+    prompt_history = history
 
     for i in range(5):
         full_prompt = "\n".join(prompt_history)
         llm_output = llm.generate(full_prompt, AGENT_SYSTEM_PROMPT)
-        #print(f"[Agent] 模型输出:\n{llm_output}")
 
         # 截断多余的 Thought-Action
         match = re.search(r'(Thought:.*?Action:.*?)(?=\n\s*(?:Thought:|Action:|Observation:)|\Z)', llm_output, re.DOTALL)
@@ -235,7 +240,6 @@ def run_agent(user_message):
 
         action_str = action_match.group(1).strip()
         if action_str.startswith("Finish"):
-            # 增强提取逻辑，兼容方括号缺失或换行
             finish_match = re.match(r"Finish\[(.*)\]", action_str, re.DOTALL)
             if finish_match:
                 final_answer = finish_match.group(1).strip()
@@ -254,7 +258,6 @@ def run_agent(user_message):
 
         if tool_name in available_tools:
             observation = available_tools[tool_name](**kwargs)
-           # print(f"[Agent] 工具 {tool_name} 返回: {observation}")
         else:
             observation = f"错误:未定义的工具 '{tool_name}'"
         prompt_history.append(f"Observation: {observation}")
@@ -273,17 +276,20 @@ def main():
     put_markdown("# 🌈 智能旅行助手")
     put_markdown("我是您的私人旅行管家，可以帮您查天气、推荐景点、预订酒店、查找最新旅游新闻。")
     put_markdown("---")
+    chat_history = []
     while True:
         user_input = textarea("请输入您的旅行需求（输入 exit 退出）", rows=3,
                               placeholder="例如：最近北京有什么大事？会影响旅游吗？")
         if user_input.strip().lower() == 'exit':
+            chat_history.clear() 
             put_text("再见！")
             break
          # 清理输入中的多余换行，避免影响模型解析
         cleaned_input = " ".join(user_input.strip().splitlines())
         put_markdown(f"**🧑 你**：{cleaned_input}")
         with put_loading('border', 'primary'):
-            reply = run_agent(cleaned_input)
+            reply = run_agent(cleaned_input, chat_history)
+            chat_history.append(f"助手回答: {reply}")
         put_markdown(f"**🤖 助手**：{reply}")
         put_markdown("---")
 
