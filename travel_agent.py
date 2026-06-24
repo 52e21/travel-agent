@@ -77,14 +77,72 @@ def get_attraction(city: str, weather: str) -> str:
     except Exception as e:
         return f"错误:执行Tavily搜索时出现问题 - {e}"
 
+# ==================== 酒店 API 接口说明 ====================
+# 当前状态：SerpApi Google Hotels 真实接口
+# 降级策略：API 失败时自动回退到模拟数据
+# 接入方式：设置环境变量 REAL_HOTEL_API_KEY
+# ==========================================================
+
 def book_hotel(city: str, budget: str) -> str:
-    """模拟酒店预订"""
-    hotels = {
-        "低": f"已为您在{city}预订了一家经济型快捷酒店，价格约200元/晚。",
-        "中": f"已为您在{city}预订了一家舒适型商务酒店，价格约500元/晚。",
-        "高": f"已为您在{city}预订了一家豪华五星级酒店，价格约1500元/晚。"
+    """酒店预订工具（SerpApi 真实接口 + Fallback 降级）"""
+    real_api_key = os.environ.get("REAL_HOTEL_API_KEY")
+    if real_api_key:
+        try:
+            from serpapi import GoogleSearch
+            from datetime import datetime, timedelta
+
+            sort_map = {"低": "3", "中": "8", "高": "8"}
+            sort_by = sort_map.get(budget, "8")
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+            params = {
+                "engine": "google_hotels",
+                "q": f"{city} hotel",
+                "gl": "cn",
+                "hl": "zh-cn",
+                "currency": "CNY",
+                "sort_by": sort_by,
+                "check_in_date": today,
+                "check_out_date": tomorrow,
+                "adults": "2",
+                "api_key": real_api_key
+            }
+
+            search = GoogleSearch(params)
+            results = search.get_dict()
+            hotels = results.get("properties", [])[:3]
+
+            if hotels:
+                hotel_list = []
+                for h in hotels:
+                    name = h.get("name", "未知酒店")
+                    rate = h.get("rates_per_night", {})
+                    if isinstance(rate, dict):
+                            lowest = rate.get("lowest") or rate.get("price") or "暂无"
+                            currency = rate.get("currency", "¥")
+                    elif isinstance(rate, str):
+                            lowest = rate
+                            currency = "¥"
+                    else:
+                            lowest = "暂无"
+                            currency = "¥"
+                    hotel_list.append(f"- {name}: {currency}{lowest}/晚")
+                return f"🏨 在{city}为您找到以下真实酒店:\n" + "\n".join(hotel_list)
+
+            print("[酒店API] 未找到酒店结果，降级到模拟数据")
+
+        except Exception as e:
+            print(f"[酒店API] 调用失败，降级到模拟数据: {e}")
+
+    # Fallback
+    budget_map = {
+        "低": f"🏨 已为您在{city}预订经济型快捷酒店，约200元/晚。（注：当前为模拟数据，接入真实API后可返回实时价格）",
+        "中": f"🏨 已为您在{city}预订舒适型商务酒店，约500元/晚。（注：当前为模拟数据，接入真实API后可返回实时价格）",
+        "高": f"🏨 已为您在{city}预订豪华五星级酒店，约1500元/晚。（注：当前为模拟数据，接入真实API后可返回实时价格）"
     }
-    return hotels.get(budget, f"已为您在{city}预订了一家舒适型酒店，价格约500元/晚。")
+    return budget_map.get(budget, budget_map["中"])
 
 def get_news(city: str) -> str:
     """使用 Tavily 搜索指定城市最近的旅游新闻"""
@@ -160,6 +218,7 @@ def run_agent(user_message):
     for i in range(5):
         full_prompt = "\n".join(prompt_history)
         llm_output = llm.generate(full_prompt, AGENT_SYSTEM_PROMPT)
+        #print(f"[Agent] 模型输出:\n{llm_output}")
 
         # 截断多余的 Thought-Action
         match = re.search(r'(Thought:.*?Action:.*?)(?=\n\s*(?:Thought:|Action:|Observation:)|\Z)', llm_output, re.DOTALL)
@@ -195,6 +254,7 @@ def run_agent(user_message):
 
         if tool_name in available_tools:
             observation = available_tools[tool_name](**kwargs)
+           # print(f"[Agent] 工具 {tool_name} 返回: {observation}")
         else:
             observation = f"错误:未定义的工具 '{tool_name}'"
         prompt_history.append(f"Observation: {observation}")
@@ -202,9 +262,11 @@ def run_agent(user_message):
     return "抱歉，我暂时无法完成您的请求，请稍后再试。"
 
 # ==================== 5. 配置密钥（改成你自己的） ====================
-from config import DEEPSEEK_API_KEY, TAVILY_API_KEY
+from config import DEEPSEEK_API_KEY, TAVILY_API_KEY,REAL_HOTEL_API_KEY
 os.environ["DEEPSEEK_API_KEY"] = DEEPSEEK_API_KEY
 os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
+os.environ["REAL_HOTEL_API_KEY"] = REAL_HOTEL_API_KEY
+#os.environ["REAL_HOTEL_API_KEY"] = "你的SerpApi密钥"
 
 def main():
     """PyWebIO 主界面：循环接收用户输入，显示助手回复"""
