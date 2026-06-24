@@ -53,3 +53,22 @@
 - **平均耗时**: 12.3 秒
 - **覆盖工具**: 全部 5 个工具（天气、景点、酒店、新闻、时间）
 - **多工具编排**: 7 个用例覆盖 2-3 工具联动
+
+## 系统架构
+
+```mermaid
+graph TB
+    User[👤 用户] --> Frontend[🌐 Web 前端]
+    Frontend --> Agent[🤖 Agent 核心循环]
+    
+    Agent --> LLM[🧠 DeepSeek 大模型]
+    Agent --> Tools[🔧 工具层]
+    
+    Tools --> Weather[🌤️ wttr.in 天气]
+    Tools --> Search[🔍 Tavily 搜索]
+    Tools --> Hotel[🏨 SerpApi 酒店]
+    Tools --> Time[⏰ 系统时间]
+    
+    LLM --> |Thought| Agent
+    Agent --> |Action| Tools
+    Tools --> |Observation| Agent
